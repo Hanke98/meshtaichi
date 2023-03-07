@@ -1,6 +1,6 @@
 import os
 
-exe_file = "build/shared_mem"
+nsight = "ncu"
 
 metrics = [
     "smsp__sass_thread_inst_executed_op_fadd_pred_on",
@@ -14,17 +14,31 @@ metrics = [
     "smsp__warps_active.sum.per_cycle_active",
     "smsp__warps_active.max.per_cycle_active",
     "smsp__warps_active.min.per_cycle_active",
-    "smsp__warps_launched"
+    "smsp__warps_launched",
 ]
 
 metrics_str = ""
 for m in metrics:
     metrics_str += m
     metrics_str += ","
-
 metrics_str = metrics_str[:-1]
 
-nsight = "nv-nsight-cu-cli"
+
+def get_kernel_reg(_ker):
+    regx = ""
+    if len(_ker) > 0:
+        regx = f'-k regex:"'
+        for k in _ker:
+            regx += k
+            regx += "|"
+
+        regx = regx[:-1] + '"'
+    return regx
+
+
+kernels = ["advance*", "vv\_substep*", "calcRestlen*"]
+kernel_regx = get_kernel_reg(kernels)
+
 args = f"--force-overwrite \
         --target-processes application-only \
         --replay-mode kernel \
@@ -53,19 +67,19 @@ args = f"--force-overwrite \
         --apply-rules yes \
         --import-source no \
         --metrics {metrics_str} \
-        -k regex:\"adva*|vv*|calcRe*\"\
+        {kernel_regx} \
         --check-exit-code yes "
 
-# result_log = f"results/iso_sphere_v245k/"
-result_log = f"results/iso_sphere_v374k/"
-os.makedirs(result_log, exist_ok=True)
-# model_fn = '/home/ljf/playground/tetgen/data/armadillo_ascii.1.node'
-# model_fn = '/home/ljf/playground/tetgen/data/iso_sphere_v245k.1.node'
-model_fn = '/home/ljf/playground/tetgen/data/iso_sphere_v374k.1.node'
-exe_file = f"python mass_spring/ms.py --model {model_fn} --arch cuda"
-# exe_file = "python tmp/test.py"
+log_base = "results/exp1"
+model_base = "/home/ljf/playground/tetgen/data/"
 
-for i in range(1):
-    cmd = f"{nsight} --export {result_log}log_{i} {args} {exe_file} --profiling"
-    # print(cmd)
+fns = ["iso_sphere_v374k.1.node", "armadillo_ascii.1.node", "iso_sphere_v245k.1.node"]
+
+for i in range(len(fns)):
+    result_log = f"{log_base}/{fns[i]}"
+    os.makedirs(result_log, exist_ok=True)
+    model_fn = f"{model_base}/{fns[i]}"
+    exe_file = f"python mass_spring/ms.py --model {model_fn} --arch cuda --profiling"
+
+    cmd = f"{nsight} --export {result_log}log_{i} {args} {exe_file}"
     os.system(cmd)
