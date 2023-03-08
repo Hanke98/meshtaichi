@@ -6,16 +6,23 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', default="models/deer.1.node")
 parser.add_argument('--arch', default='gpu')
 parser.add_argument('--test', action='store_true')
+parser.add_argument("--profiling", action="store_true")
 args = parser.parse_args()
 
-ti.init(arch=getattr(ti, args.arch), dynamic_index=True, random_seed=0)
+ti.init(arch=getattr(ti, args.arch), random_seed=0)
 
 E, nu = 5e5, 0.0
 mu, la = E / (2 * (1 + nu)), E * nu / ((1 + nu) * (1 - 2 * nu))
 density = 100.0
 dt = 2e-2
 
-mesh = Patcher.load_mesh(args.model, relations=["CE", "CV", "EV"])
+PD_ITER = 5
+CG_ITER = 30
+if args.profiling:
+    PD_ITER=1
+    CG_ITER=1
+
+mesh = Patcher.load_mesh(args.model, relations=["CE", "CV", "EV"], cache=True)
 mesh.verts.place({'x' :         ti.math.vec3, 
                   'v' :         ti.math.vec3,
                   'mul_ans' :   ti.math.vec3,
@@ -138,7 +145,7 @@ def newton():
     x0.copy_from(x)
     add(y, x, dt, v)
     x.copy_from(y)
-    for i in range(5): # PD iterations
+    for i in range(PD_ITER): # PD iterations
         f.fill(0.0)
         get_force()
         get_b()
@@ -149,7 +156,7 @@ def newton():
         d = p0
         d.copy_from(r0)
         r_2 = dot(r0, r0)
-        n_iter = 30 # CG iterations
+        n_iter = CG_ITER # CG iterations
         epsilon = 1e-5
         r_2_init = r_2
         r_2_new = r_2
@@ -195,6 +202,11 @@ if args.test:
     assert abs(arr.mean() - 0.50) < 2e-2
     assert abs((arr**2).mean() - 0.287) < 2e-2
     exit(0)
+
+if args.profiling:
+    newton()
+    exit(0)
+    # pass
 
 window = ti.ui.Window("Projective Dynamics", (1024, 768))
 canvas = window.get_canvas()

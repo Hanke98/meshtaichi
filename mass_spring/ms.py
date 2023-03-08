@@ -8,7 +8,9 @@ parser.add_argument("--model", default="models/armadillo0.1.node")
 parser.add_argument("--arch", default="gpu")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("--profiling", action="store_true")
+parser.add_argument("--reorder", action="store_true")
 args = parser.parse_args()
+print(args)
 
 ti.init(arch=getattr(ti, args.arch), device_memory_fraction=0.6, default_fp=ti.float32)
 
@@ -21,10 +23,10 @@ eps = 1e-6
 
 mesh = Patcher.load_mesh(args.model, relations=["EV", "VV", "CV"], cache=True)
 mesh.verts.place(
-    {"x": ti.math.vec3, "ox": ti.math.vec3, "v": ti.math.vec3, "f": ti.math.vec3}
+    {"x": ti.math.vec3, "ox": ti.math.vec3, "v": ti.math.vec3, "f": ti.math.vec3},
+    reorder=args.reorder,
 )
 
-# print(mesh.__dict__)
 
 mesh.edges.place({"rest_len": ti.f32})
 
@@ -32,7 +34,6 @@ mesh.verts.x.from_numpy(mesh.get_position_as_numpy())
 mesh.verts.ox.copy_from(mesh.verts.x)
 mesh.verts.v.fill([0.0, 0.0, -100.0])
 
-print(mesh.verts.x.shape)
 
 @ti.kernel
 def vv_substep():
@@ -130,19 +131,19 @@ camera.lookat(0, -70, 0)
 camera.fov(75)
 
 
-# while window.running:
-#     for i in range(25):
-#         advance()
-#         vv_substep()
+while window.running:
+    for i in range(25):
+        advance()
+        vv_substep()
 
-#     camera.track_user_inputs(window, movement_speed=0.03, hold_key=ti.ui.RMB)
-#     scene.set_camera(camera)
-#     scene.ambient_light((0.5, 0.5, 0.5))
-#     scene.mesh(mesh.verts.x, indices, color = (0.5, 0.5, 0.5))
-#     scene.point_light(pos=(-50, 150, -50), color=(1, 1, 1))
-#     scene.point_light(pos=(-50, 150, -150), color=(1, 1, 1))
-#     canvas.scene(scene)
-#     window.show()
-#     for event in window.get_events(ti.ui.PRESS):
-#         if event.key in [ti.ui.ESCAPE]:
-#             window.running = False
+    camera.track_user_inputs(window, movement_speed=0.03, hold_key=ti.ui.RMB)
+    scene.set_camera(camera)
+    scene.ambient_light((0.5, 0.5, 0.5))
+    scene.mesh(mesh.verts.x, indices, color=(0.5, 0.5, 0.5))
+    scene.point_light(pos=(-50, 150, -50), color=(1, 1, 1))
+    scene.point_light(pos=(-50, 150, -150), color=(1, 1, 1))
+    canvas.scene(scene)
+    window.show()
+    for event in window.get_events(ti.ui.PRESS):
+        if event.key in [ti.ui.ESCAPE]:
+            window.running = False
