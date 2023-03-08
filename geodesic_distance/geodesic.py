@@ -6,6 +6,7 @@ parser.add_argument('--model', default="models/yog.obj")
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--arch', default='gpu')
 parser.add_argument('--output', default='colored.obj')
+parser.add_argument('--profiling', action='store_true')
 args = parser.parse_args()
 
 ti.init(arch=getattr(ti, args.arch))
@@ -14,7 +15,7 @@ count = ti.field(dtype=ti.i32, shape=())
 error_tol = 1e-3
 src = 233 # Point-0
 
-mesh = Patcher.load_mesh(args.model, relations=['VV', 'VF', 'FV'])
+mesh = Patcher.load_mesh(args.model, relations=['VV', 'VF', 'FV'], cache=True)
 mesh.verts.place({'x' : ti.math.vec3, 
                   'level' : ti.i32, 
                   'd' : ti.f32, 
@@ -31,15 +32,16 @@ def update_step(v0, v1, v2):
     xs = [x[v1] - x[v0], x[v2] - x[v0]]
     X = ti.Matrix.cols(xs)
     t = ti.Vector([d[v1], d[v2]])
+    tt = ti.Matrix([[d[v1], d[v2]]])
     l = ti.Vector([1.0] * 2)
-    lt = l.transpose()
+    lt = ti.Matrix([[1.0, 1.0]])
     q = ti.Matrix([[xs[i].dot(xs[j]) for j in ti.static(range(2))] for i in ti.static(range(2))])
     Q = q.inverse()
-    p = ((lt @ Q @ t + ((lt @ Q @ t)**2 - lt @ Q @ l * (t.transpose() @ Q @ t - 1))**0.5) / (lt @ Q @ l))[0]
+    p = ((lt @ Q @ t + ((lt @ Q @ t)**2 - lt @ Q @ l * (tt @ Q @ t - 1))**0.5) / (lt @ Q @ l))[0]
     n = X @ Q @ (t - 1)
     cond = Q @ X.transpose() @ n
     if cond[0] >= 0 or cond[1] >= 0 or d[v1] > 1e9 or d[v2] > 1e9:
-        p = min(d[v1] + xs[0].norm(), d[v2] + xs[1].norm())
+        p = ti.min(d[v1] + xs[0].norm(), d[v2] + xs[1].norm())
     return p
 
 @ti.kernel
@@ -52,7 +54,7 @@ def ptp(l: ti.i32, r: ti.i32):
                 for i in ti.static(range(3)):
                     if f.verts[i].id == u.id:
                         j = i
-                dist = min(dist, update_step(*[f.verts[(j + i) % 3].id for i in ti.static(range(3))]))
+                dist = ti.min(dist, update_step(*[f.verts[(j + i) % 3].id for i in ti.static(range(3))]))
             u.new_d = dist
             if u.level == l and abs(dist - u.d) / u.d < error_tol:
                 count[None] += 1
@@ -70,6 +72,14 @@ level.fill(-1)
 level[src] = 0
 
 levels = []
+
+if args.profiling:
+    get_level(0)
+    get_level(1)
+    ptp(1, 1)
+    exit(0)
+
+
 for i in range(10000):
     count[None] = 0
     get_level(i)

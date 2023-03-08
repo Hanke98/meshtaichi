@@ -12,6 +12,8 @@ def parse_args():
                         help='Output Path')
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--arch', default='cuda')
+    parser.add_argument('--profiling', action='store_true')
+    parser.add_argument('--model', type=str, default='./models/armadillo0/armadillo0.1.node')
     args = parser.parse_args()
     return args
 
@@ -19,7 +21,7 @@ def parse_args():
 args = parse_args()
 
 if not args.test:
-    ti.init(arch=ti.cuda, device_memory_GB=4.0, packed=True)
+    ti.init(arch=ti.cuda, device_memory_GB=4.0)
 
     os.makedirs(args.output + "/armadillo", exist_ok=True)
     os.makedirs(args.output + "/particles", exist_ok=True)
@@ -34,12 +36,12 @@ fems, models = [], []
 
 def transform(verts, scale, offset): return verts / max(verts.max(0) - verts.min(0)) * scale + offset
 def init(x, y, i):
-    model = Patcher.load_mesh_rawdata("./models/armadillo0/armadillo0.1.node")
+    model = Patcher.load_mesh_rawdata(args.model)
     model[0] = transform(model[0], model_size, [x, y, 0.05 + (model_size / 2 + 0.012) * i])
     models.append(model)
 
 n_armadillo = 30
-if args.test:
+if args.test or args.profiling:
     n_armadillo = 3
 
 for i in range(n_armadillo):
@@ -51,6 +53,11 @@ for i in range(n_armadillo):
 
 mesh = Patcher.load_mesh(models, relations=["CV"])
 fems.append(FEM(mesh))
+
+if args.profiling:
+    solve(1, fems, log=False, dt=5e-4)
+    exit(0)
+
 
 if args.test:
     for frame in range(10):

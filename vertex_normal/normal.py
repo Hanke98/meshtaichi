@@ -6,15 +6,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', default="./models/bunny.obj")
 parser.add_argument('--test', action='store_true')
 parser.add_argument('--arch', default='gpu')
+parser.add_argument("--profiling", action="store_true")
 args = parser.parse_args()
 
 ti.init(arch=getattr(ti, args.arch))
 
-mesh = Patcher.load_mesh(args.model, relations=['FV'])
+mesh = Patcher.load_mesh(args.model, relations=['FV'], cache=True)
 mesh.verts.place({'x' : ti.math.vec3, 
                   'normal' : ti.math.vec3})
 mesh.verts.x.from_numpy(mesh.get_position_as_numpy())
 
+print(mesh.verts.x.shape)
 @ti.kernel
 def vertex_normal():
     ti.mesh_local(mesh.verts.x, mesh.verts.normal)
@@ -32,6 +34,8 @@ def vertex_normal():
             f.verts[i].normal += n / (l[i] + l[(i + 2) % 3])
 
 vertex_normal()
+if args.profiling:
+    exit(-1)
 
 n = mesh.verts.normal.to_numpy()
 if args.test:

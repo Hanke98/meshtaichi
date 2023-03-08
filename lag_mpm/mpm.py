@@ -108,8 +108,8 @@ def g2p(fem : ti.template(), dt : ti.f32, pid : ti.template()):
         fem.x[p] += new_v * dt
         fem.C[p] = new_C
 
-def solve(cnt, fems, log=True):
-    frame_time_left = frame_dt
+def solve(cnt, fems, log=True, dt=frame_dt):
+    frame_time_left = dt
     substep = 0
     while frame_time_left > 0.0:
         if log: print(f"substep: {substep}")
