@@ -9,6 +9,7 @@ parser.add_argument("--arch", default="gpu")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("--profiling", action="store_true")
 parser.add_argument("--reorder", action="store_true")
+parser.add_argument("--patch", type=int, default=256)
 args = parser.parse_args()
 print(args)
 
@@ -21,7 +22,7 @@ bottom_z = -70.0
 dt = 2e-4
 eps = 1e-6
 
-mesh = Patcher.load_mesh(args.model, relations=["EV", "VV", "CV"], cache=True)
+mesh = Patcher.load_mesh(args.model, relations=["EV", "VV", "CV"], cache=True, patch_size=args.patch)
 mesh.verts.place(
     {"x": ti.math.vec3, "ox": ti.math.vec3, "v": ti.math.vec3, "f": ti.math.vec3},
     reorder=args.reorder,

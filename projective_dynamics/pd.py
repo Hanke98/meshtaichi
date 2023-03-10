@@ -7,6 +7,7 @@ parser.add_argument('--model', default="models/deer.1.node")
 parser.add_argument('--arch', default='gpu')
 parser.add_argument('--test', action='store_true')
 parser.add_argument("--profiling", action="store_true")
+parser.add_argument("--patch", type=int, default=256)
 args = parser.parse_args()
 
 ti.init(arch=getattr(ti, args.arch), random_seed=0)
@@ -22,7 +23,7 @@ if args.profiling:
     PD_ITER=1
     CG_ITER=1
 
-mesh = Patcher.load_mesh(args.model, relations=["CE", "CV", "EV"], cache=True)
+mesh = Patcher.load_mesh(args.model, relations=["CE", "CV", "EV"], cache=True, patch_size=args.patch)
 mesh.verts.place({'x' :         ti.math.vec3, 
                   'v' :         ti.math.vec3,
                   'mul_ans' :   ti.math.vec3,
