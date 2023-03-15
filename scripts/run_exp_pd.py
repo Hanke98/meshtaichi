@@ -12,6 +12,8 @@ fns = ["armadillo_ascii.1.node", "iso_sphere_v245k.1.node", "iso_sphere_v374k.1.
 patch_sizes = [256, 512, 1024, 2048, 4096]
 
 def run1():
+    global log_base
+    log_base = f'{log_base}/profiling/'
     for i in range(len(fns)):
         os.makedirs(log_base, exist_ok=True)
         result_log = f"{log_base}/{fns[i]}"
@@ -39,4 +41,5 @@ def run2():
             cmd = f"ncu --export {result_log} {args} {exe_file}"
             os.system(cmd)
 
+# run1()
 run2()

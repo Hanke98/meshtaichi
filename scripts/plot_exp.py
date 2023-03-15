@@ -75,7 +75,7 @@ for idx, base in enumerate(bases):
 
 plt.plot([0, ridge_point, 1e4], [0, peak_flops, peak_flops], '-r')
 plt.ylabel("FLOPS/(1e12)", fontsize=16)
-plt.xlabel("Arithmetic(FLOP/Bytes)", fontsize=16)
+plt.xlabel("Arithmetic Intensity(FLOP/Bytes)", fontsize=16)
 plt.title("Roofline", fontsize=16)
 
 plt.grid()

@@ -11,6 +11,13 @@ defualt_metrics = [
     "smsp__warps_active.max.per_cycle_active",
     "smsp__warps_active.min.per_cycle_active",
     "smsp__warps_launched",
+    "sm__sass_inst_executed_op_shared",
+    "l1tex__t_bytes",
+    "l1tex__data_pipe_lsu_wavefronts_mem_shared",
+    "l1tex__average_t_sectors_per_request_pipe_lsu",
+    "l1tex__data_bank_conflicts_pipe_lsu",
+    "l1tex__data_bank_reads",
+    "l1tex__data_bank_writes"
 ]
 
 
