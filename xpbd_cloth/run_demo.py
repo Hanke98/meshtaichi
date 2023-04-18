@@ -23,13 +23,13 @@ def stretch_callback(id): return 1e-7
 @ti.func
 def bending_callback(id): return 1e-6
 
-solver = PositionBasedDynamics(rest_pose = "models/cloth.obj",
+solver = PositionBasedDynamics(rest_pose = "./xpbd_cloth/models/cloth.obj",
                           sdf = sdf,
                           stretch_compliance_callback = stretch_callback,
                           bending_compliance_callback = bending_callback,
                           frame_dt = 1e-2, 
                           dt = 5e-4,
-                          rest_iter= 5,
+                          rest_iter= 1,
                           reorder_all=False)
 
 if args.test:
@@ -40,13 +40,14 @@ if args.test:
     assert '%.3f' % (arr**2).mean() == '0.363'
     exit(0)
 
-initScene(position=(0.5, -0.3, 0.95), 
-          lookat=(0.52, 0.52, 0.4), 
-          show_window=True)
+# initScene(position=(0.5, -0.3, 0.95), 
+#           lookat=(0.52, 0.52, 0.4), 
+#           show_window=True)
+solver.solve()
 
-frame = 0
-running = True
-while running:
-    solver.solve()
-    running = renderScene(solver, frame)
-    frame += 1
+# frame = 0
+# running = True
+# while running:
+#     solver.solve()
+#     running = renderScene(solver, frame)
+#     frame += 1

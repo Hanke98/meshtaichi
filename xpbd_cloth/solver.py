@@ -12,7 +12,7 @@ class PositionBasedDynamics:
     offset=(0.0, 0.0, 0.0),
     frame_dt=1e-2,
     dt=1e-2,
-    rest_iter=1000,
+    rest_iter=1,
     XPBD=True,
     reorder_all=False,
     block_size=128,
@@ -199,6 +199,7 @@ class PositionBasedDynamics:
             substep += 1
             dt0 = min(self.dt, frame_time_left)
             frame_time_left -= dt0
+            print(self.rest_iter)
 
             self.applyExtForce(dt0)
             if self.XPBD:
@@ -212,3 +213,4 @@ class PositionBasedDynamics:
 
             self.update(dt0)
             self.time += dt0
+            break

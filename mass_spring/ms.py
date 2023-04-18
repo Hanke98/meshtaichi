@@ -10,10 +10,32 @@ parser.add_argument("--test", action="store_true")
 parser.add_argument("--profiling", action="store_true")
 parser.add_argument("--reorder", action="store_true")
 parser.add_argument("--patch", type=int, default=256)
+parser.add_argument("--auto-cache", action="store_true", default=False)
+parser.add_argument("--no-cache", action="store_true", default=False)
+parser.add_argument("--search", type=int, default=-1)
 args = parser.parse_args()
 print(args)
 
-ti.init(arch=getattr(ti, args.arch), device_memory_fraction=0.6, default_fp=ti.float32)
+auto_cache = args.auto_cache
+no_cache = args.no_cache
+search_cache = args.search
+
+print(f"auto_cache: {auto_cache}")
+print(f"no_cache: {no_cache}")
+if no_cache:
+    ti.init(
+        arch=getattr(ti, args.arch),
+        experimental_auto_mesh_local=False,
+        device_memory_fraction=0.6,
+        default_fp=ti.float32,
+    )
+else:
+    ti.init(
+        arch=getattr(ti, args.arch),
+        experimental_auto_mesh_local=auto_cache,
+        device_memory_fraction=0.6,
+        default_fp=ti.float32,
+    )
 
 mass = 1.0
 stiffness = 5e5
@@ -22,7 +44,9 @@ bottom_z = -70.0
 dt = 2e-4
 eps = 1e-6
 
-mesh = Patcher.load_mesh(args.model, relations=["EV", "VV", "CV"], cache=True, patch_size=args.patch)
+mesh = Patcher.load_mesh(
+    args.model, relations=["EV", "VV", "CV"], cache=True, patch_size=args.patch
+)
 mesh.verts.place(
     {"x": ti.math.vec3, "ox": ti.math.vec3, "v": ti.math.vec3, "f": ti.math.vec3},
     reorder=args.reorder,
@@ -35,10 +59,33 @@ mesh.verts.x.from_numpy(mesh.get_position_as_numpy())
 mesh.verts.ox.copy_from(mesh.verts.x)
 mesh.verts.v.fill([0.0, 0.0, -100.0])
 
+attr_lists = [
+    [mesh.verts.x],
+    [mesh.verts.ox],
+    [mesh.verts.v],
+    [mesh.verts.x, mesh.verts.ox],
+    [mesh.verts.x, mesh.verts.v],
+    [mesh.verts.ox, mesh.verts.v],
+    [mesh.verts.x, mesh.verts.ox, mesh.verts.v],
+]
+
 
 @ti.kernel
 def vv_substep():
-    ti.mesh_local(mesh.verts.x, mesh.verts.ox)
+    if ti.static(no_cache):
+        vv_substep_func()
+    elif ti.static(search_cache>=0):
+        ti.mesh_local(*attr_lists[search_cache])
+        vv_substep_func()
+    elif not ti.static(auto_cache):
+        ti.mesh_local(*(attr_lists[3]))
+        vv_substep_func()
+    else:
+        vv_substep_func()
+
+
+@ti.func
+def vv_substep_func():
     for v0 in mesh.verts:
         v0.v *= ti.exp(-dt * damping)
         total_f = ti.Vector([0.0, -98.0, 0.0])
