@@ -10,6 +10,7 @@ parser.add_argument("--test", action="store_true")
 parser.add_argument("--profiling", action="store_true")
 parser.add_argument("--reorder", action="store_true")
 parser.add_argument("--patch", type=int, default=256)
+parser.add_argument("--block-dim", type=int, default=128)
 parser.add_argument("--auto-cache", action="store_true", default=False)
 parser.add_argument("--no-cache", action="store_true", default=False)
 parser.add_argument("--search", type=int, default=-1)
@@ -19,6 +20,7 @@ print(args)
 auto_cache = args.auto_cache
 no_cache = args.no_cache
 search_cache = args.search
+block_dim = args.block_dim
 
 print(f"auto_cache: {auto_cache}")
 print(f"no_cache: {no_cache}")
@@ -74,7 +76,7 @@ attr_lists = [
 def vv_substep():
     if ti.static(no_cache):
         vv_substep_func()
-    elif ti.static(search_cache>=0):
+    elif ti.static(search_cache >= 0):
         ti.mesh_local(*attr_lists[search_cache])
         vv_substep_func()
     elif not ti.static(auto_cache):
@@ -100,6 +102,24 @@ def vv_substep_func():
             )
 
         v0.v += dt * total_f
+
+
+# @ti.func
+# def vv_substep_func():
+#     ti.mesh_local(mesh.verts.x, mesh.verts.ox)
+#     for v0 in mesh.verts:
+#         v0.v *= ti.exp(-dt * damping)
+#         total_f = ti.Vector([0.0, -98.0, 0.0])
+
+#         for v1 in v0.verts:
+#             disp = v0.x - v1.x
+#             rest_disp = v0.ox - v1.ox
+#             total_f += (
+#                 -stiffness
+#                 * (disp.norm(eps) - rest_disp.norm(eps))
+#                 * disp.normalized(eps)
+#             )
+#         v0.v += dt * total_f
 
 
 @ti.kernel
