@@ -28,8 +28,8 @@ use_reorder = "--reorder"
 
 model_base = "/home/ljf/playground/tetgen/data/"
 fns = ["armadillo_ascii.1.node", "iso_sphere_v245k.1.node", "iso_sphere_v374k.1.node"]
-# patch_sizes = [256, 512, 1024, 2048, 4096]
-patch_sizes = [256, 512]
+patch_sizes = [256, 512, 1024, 2048, 4096]
+# patch_sizes = [256, 512]
 
 
 def run1():

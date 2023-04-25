@@ -1,16 +1,24 @@
-import taichi as ti
-import meshtaichi_patcher as Patcher
 import argparse
+import itertools
+
+import meshtaichi_patcher as Patcher
+import taichi as ti
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--model', default="models/deer.1.node")
-parser.add_argument('--arch', default='gpu')
-parser.add_argument('--test', action='store_true')
+parser.add_argument("--model", default="models/deer.1.node")
+parser.add_argument("--arch", default="gpu")
+parser.add_argument("--test", action="store_true")
 parser.add_argument("--profiling", action="store_true")
 parser.add_argument("--patch", type=int, default=256)
-args = parser.parse_args()
+parser.add_argument("--search", type=int, default=0)
+# 0 for get_force
+# 1 for get_matrix
+parser.add_argument("--kernel", type=int, default=0)
 
-ti.init(arch=getattr(ti, args.arch), random_seed=0)
+args = parser.parse_args()
+search_idx = args.search
+
+ti.init(arch=getattr(ti, args.arch), device_memory_fraction=0.7, random_seed=0)
 
 E, nu = 5e5, 0.0
 mu, la = E / (2 * (1 + nu)), E * nu / ((1 + nu) * (1 - 2 * nu))
@@ -20,20 +28,26 @@ dt = 2e-2
 PD_ITER = 5
 CG_ITER = 30
 if args.profiling:
-    PD_ITER=1
-    CG_ITER=1
+    PD_ITER = 1
+    CG_ITER = 1
 
-mesh = Patcher.load_mesh(args.model, relations=["CE", "CV", "EV"], cache=True, patch_size=args.patch)
-mesh.verts.place({'x' :         ti.math.vec3, 
-                  'v' :         ti.math.vec3,
-                  'mul_ans' :   ti.math.vec3,
-                  'f' :         ti.math.vec3,
-                  'hessian':    ti.f32,
-                  'm' :         ti.f32})
+mesh = Patcher.load_mesh(
+    args.model, relations=["CE", "CV", "EV"], cache=True, patch_size=args.patch
+)
+mesh.verts.place(
+    {
+        "x": ti.math.vec3,
+        "v": ti.math.vec3,
+        "mul_ans": ti.math.vec3,
+        "f": ti.math.vec3,
+        "hessian": ti.f32,
+        "m": ti.f32,
+    }
+)
+print(args)
 
-mesh.edges.place({'hessian':    ti.f32})
-mesh.cells.place({'B' :         ti.math.mat3, 
-                  'W' :         ti.f32})
+mesh.edges.place({"hessian": ti.f32})
+mesh.cells.place({"B": ti.math.mat3, "W": ti.f32})
 mesh.verts.x.from_numpy(mesh.get_position_as_numpy())
 
 x = mesh.verts.x
@@ -41,21 +55,66 @@ v = mesh.verts.v
 f = mesh.verts.f
 m = mesh.verts.m
 mul_ans = mesh.verts.mul_ans
+W = mesh.cells.W
+B = mesh.cells.B
+eh = mesh.edges.hessian
+vh = mesh.verts.hessian
+
+attrs_str = ["B", "W", "f", "x"]
+get_force_attrs = [B, W, f, x]
+get_froce_attr_lists = []
+
+get_matrix_attrs = [B, W, eh, vh]
+get_matrix_attr_lists = []
+
+
+def to_idx(s, n_attributes=3):
+    res = []
+    for k in reversed(range(n_attributes)):
+        res.append((s & (1 << k)) >> k)
+    return tuple(res)
+
+
+def gen_list(attr):
+    _idx = to_idx(search_idx, n_attributes=len(attr))
+    l = []
+    for k in range(len(attr)):
+        if _idx[k] == 1:
+            l.append(attr[k])
+    return l
+
+
+if args.kernel == 0:
+    # _idx = to_idx(search_idx, n_attributes=len(get_force_attrs))
+    # for k in range(len(get_force_attrs)):
+    #     if _idx[k] == 1:
+    #         get_froce_attr_lists.append(get_force_attrs[k])
+    # print(get_froce_attr_lists)
+    get_force_attr_lists = gen_list(get_force_attrs)
+elif args.kernel == 1:
+    get_matrix_attr_lists = gen_list(get_matrix_attrs)
+    print(get_matrix_attr_lists)
+
 
 @ti.func
 def ssvd(F):
     U, sig, V = ti.svd(F)
     if U.determinant() < 0:
-        for i in ti.static(range(3)): U[i, 2] *= -1
+        for i in ti.static(range(3)):
+            U[i, 2] *= -1
         sig[2, 2] = -sig[2, 2]
     if V.determinant() < 0:
-        for i in ti.static(range(3)): V[i, 2] *= -1
+        for i in ti.static(range(3)):
+            V[i, 2] *= -1
         sig[2, 2] = -sig[2, 2]
     return U, sig, V
 
+
 @ti.kernel
 def get_force():
-    ti.mesh_local(mesh.verts.f)
+    # ti.mesh_local(mesh.verts.f)
+    ti.mesh_local(*get_froce_attr_lists)
+    # ti.mesh_local(mesh.cell.B, mesh.cell.W )
     for c in mesh.cells:
         Ds = ti.Matrix.cols([c.verts[i].x - c.verts[3].x for i in ti.static(range(3))])
         F = Ds @ c.B
@@ -67,8 +126,10 @@ def get_force():
             c.verts[i].f += Hx
             c.verts[3].f -= Hx
 
+
 @ti.kernel
 def get_matrix():
+    ti.mesh_local(*get_matrix_attr_lists)
     for c in mesh.cells:
         hes = ti.Matrix.zero(ti.f32, 4, 4)
         for u in range(4):
@@ -76,13 +137,14 @@ def get_matrix():
             if u == 3:
                 for j in ti.static(range(3)):
                     dD[0, j] = -1
-            else: dD[0, u] = 1
+            else:
+                dD[0, u] = 1
             dF = dD @ c.B
             dP = 2.0 * mu * dF
             dH = -c.W * dP @ c.B.transpose()
             for i in ti.static(range(3)):
                 for j in ti.static(range(1)):
-                    hes[i, u] = -dt**2 * dH[j, i]
+                    hes[i, u] = -(dt**2) * dH[j, i]
                     hes[3, u] += dt**2 * dH[j, i]
 
         for z in range(c.edges.size):
@@ -98,6 +160,7 @@ def get_matrix():
             v = c.verts[z]
             v.hessian += hes[z, z]
 
+
 @ti.kernel
 def mul_kernel(ret: ti.template(), vel: ti.template()):
     for v in mesh.verts:
@@ -110,21 +173,26 @@ def mul_kernel(ret: ti.template(), vel: ti.template()):
         ret[u] += e.hessian * vel[v]
         ret[v] += e.hessian * vel[u]
 
+
 def mul(x):
     mul_kernel(mul_ans, x)
     return mul_ans
+
 
 @ti.kernel
 def add(ans: ti.template(), a: ti.template(), k: ti.f32, b: ti.template()):
     for i in ans:
         ans[i] = a[i] + k * b[i]
-    
+
+
 @ti.kernel
 def dot(a: ti.template(), b: ti.template()) -> ti.f32:
     ans = 0.0
     ti.loop_config(block_dim=32)
-    for i in a: ans += a[i].dot(b[i])
+    for i in a:
+        ans += a[i].dot(b[i])
     return ans
+
 
 b = ti.Vector.field(3, dtype=ti.f32, shape=len(mesh.verts))
 r0 = ti.Vector.field(3, dtype=ti.f32, shape=len(mesh.verts))
@@ -132,43 +200,47 @@ p0 = ti.Vector.field(3, dtype=ti.f32, shape=len(mesh.verts))
 y = ti.Vector.field(3, dtype=ti.f32, shape=len(mesh.verts))
 x0 = ti.Vector.field(3, dtype=ti.f32, shape=len(mesh.verts))
 
+
 @ti.kernel
 def get_b():
     for i in b:
-        b[i] = m[i] * (x[i] - y[i]) - (dt ** 2) * f[i]
+        b[i] = m[i] * (x[i] - y[i]) - (dt**2) * f[i]
+
 
 @ti.kernel
 def update_v():
     for i in v:
         v[i] = (x[i] - x0[i]) / dt
 
+
 def newton():
     x0.copy_from(x)
     add(y, x, dt, v)
     x.copy_from(y)
-    for i in range(PD_ITER): # PD iterations
+    for i in range(PD_ITER):  # PD iterations
         f.fill(0.0)
         get_force()
         get_b()
 
-        v.fill(0.0) # reuse `v` here as dx
+        v.fill(0.0)  # reuse `v` here as dx
         r0.copy_from(b)
 
         d = p0
         d.copy_from(r0)
         r_2 = dot(r0, r0)
-        n_iter = CG_ITER # CG iterations
+        n_iter = CG_ITER  # CG iterations
         epsilon = 1e-5
         r_2_init = r_2
         r_2_new = r_2
         for iter in range(n_iter):
             q = mul(d)
             alpha = r_2_new / dot(d, q)
-            add(v, v, alpha, d) 
+            add(v, v, alpha, d)
             add(r0, r0, -alpha, q)
             r_2 = r_2_new
             r_2_new = dot(r0, r0)
-            if r_2_new <= r_2_init * epsilon**2: break
+            if r_2_new <= r_2_init * epsilon**2:
+                break
             beta = r_2_new / r_2
             add(d, r0, beta, d)
 
@@ -176,7 +248,10 @@ def newton():
 
     update_v()
 
-indices = ti.field(ti.u32, shape = len(mesh.cells) * 4 * 3)
+
+indices = ti.field(ti.u32, shape=len(mesh.cells) * 4 * 3)
+
+
 @ti.kernel
 def init():
     for c in mesh.cells:
@@ -191,6 +266,7 @@ def init():
     for u in mesh.verts:
         for i in ti.static(range(3)):
             u.x[i] = ti.random()
+
 
 init()
 get_matrix()
@@ -223,7 +299,7 @@ while window.running:
     camera.track_user_inputs(window, movement_speed=0.03, hold_key=ti.ui.RMB)
     scene.set_camera(camera)
 
-    scene.mesh(mesh.verts.x, indices, color = (0.5, 0.5, 0.5))
+    scene.mesh(mesh.verts.x, indices, color=(0.5, 0.5, 0.5))
 
     scene.point_light(pos=(0.5, 1.5, 0.5), color=(1, 1, 1))
     scene.point_light(pos=(0.5, 1.5, 1.5), color=(1, 1, 1))

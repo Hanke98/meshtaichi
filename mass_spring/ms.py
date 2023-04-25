@@ -62,10 +62,11 @@ mesh.verts.ox.copy_from(mesh.verts.x)
 mesh.verts.v.fill([0.0, 0.0, -100.0])
 
 attr_lists = [
+    [],
     [mesh.verts.x],
     [mesh.verts.ox],
-    [mesh.verts.v],
     [mesh.verts.x, mesh.verts.ox],
+    [mesh.verts.v],
     [mesh.verts.x, mesh.verts.v],
     [mesh.verts.ox, mesh.verts.v],
     [mesh.verts.x, mesh.verts.ox, mesh.verts.v],

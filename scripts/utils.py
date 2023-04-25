@@ -17,7 +17,8 @@ defualt_metrics = [
     "l1tex__average_t_sectors_per_request_pipe_lsu",
     "l1tex__data_bank_conflicts_pipe_lsu",
     "l1tex__data_bank_reads",
-    "l1tex__data_bank_writes"
+    "l1tex__data_bank_writes",
+    "launch__shared_mem_per_block_static"
 ]
 
 

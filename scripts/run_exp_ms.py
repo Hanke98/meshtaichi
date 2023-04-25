@@ -18,7 +18,7 @@ use_reorder = "--reorder"
 # log_base = "results/mass-spring-auto-cache/"
 # use_reorder = "--reorder"
 
-log_base = "results/mass-spring-search-cache2/"
+log_base = "results/mass-spring-search-cache5/"
 use_reorder = "--reorder"
 
 # log_base = "results/mass-sprint-cache-test2"
@@ -29,7 +29,11 @@ use_reorder = "--reorder"
 model_base = "/home/ljf/playground/tetgen/data/"
 fns = ["armadillo_ascii.1.node", "iso_sphere_v245k.1.node", "iso_sphere_v374k.1.node"]
 # patch_sizes = [256, 512, 1024, 2048, 4096]
-patch_sizes = [1024]
+# patch_sizes = [256, 512, 1024, 2048, 4096]
+# patch_sizes = [256, 512, 768, 1024]
+patch_sizes = [256 * i for i in range(5, 9)]
+# print(patch_sizes)
+# exit(0)
 
 
 def run1():
@@ -67,17 +71,30 @@ def run2(use_auto_cache=False, no_cache=False):
 def search():
     global log_base
     log_base = f"{log_base}/"
+
+    # cache_strs = [
+    #     "no_cache",
+    #     "cahce_x",
+    #     "cahce_ox",
+    #     "cahce_v",
+    #     "cache_x_ox",
+    #     "cache_x_v",
+    #     "cache_ox_v",
+    #     "cache_ox_v",
+    # ]
+
     for i in range(len(fns)):
         for p in patch_sizes:
             log_base_ = f"{log_base}/{fns[i]}/"
             os.makedirs(log_base_, exist_ok=True)
-            for c in range(7):
-                result_log = f"{log_base_}/{fns[i]}_patch_size_{p}_cache_{c}"
+            for c in range(8):
+                result_log = f"{log_base_}/p_{p}_c_{c}"
                 model_fn = f"{model_base}/{fns[i]}"
                 exe_file = f"python mass_spring/ms.py --model {model_fn} --patch {p} --arch cuda --search {c} --profiling {use_reorder}"
-                cmd = f"ncu --export {result_log}log {args} {exe_file}"
+                cmd = f"TI_OFFLINE_CACHE=0 ncu --export {result_log} {args} {exe_file}"
                 os.system(cmd)
         break
+
 
 def test():
     global log_base
