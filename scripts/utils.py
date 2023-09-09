@@ -1,4 +1,4 @@
-defualt_metrics = [
+default_metrics = [
     "smsp__sass_thread_inst_executed_op_fadd_pred_on",
     "smsp__sass_thread_inst_executed_op_fmul_pred_on",
     "smsp__sass_thread_inst_executed_op_ffma_pred_on",
@@ -21,6 +21,12 @@ defualt_metrics = [
     "launch__shared_mem_per_block_static"
 ]
 
+default_metrics = [
+    "launch__shared_mem_per_block_static"
+    "l1tex__t_sector_hit_rate.pct",
+    "lts__t_sector_hit_rate.pct",
+ ]
+
 
 def get_kernel_reg(_ker):
     regx = ""
@@ -42,7 +48,7 @@ def get_metric_strings(_met):
     metrics_str = metrics_str[:-1]
     return metrics_str
 
-def gen_ncu_args(_ker, _met=defualt_metrics):
+def gen_ncu_args(_ker, _met=default_metrics):
     metrics_str = get_metric_strings(_met)
     kernel_regx = get_kernel_reg(_ker)
     args = f"--force-overwrite \

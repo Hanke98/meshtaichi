@@ -11,14 +11,24 @@ parser.add_argument("--test", action="store_true")
 parser.add_argument("--profiling", action="store_true")
 parser.add_argument("--patch", type=int, default=256)
 parser.add_argument("--search", type=int, default=0)
-# 0 for get_force
-# 1 for get_matrix
+parser.add_argument("--get-size", action="store_true")
+
+# for kernel arg:
+#   0 for get_force
+#   1 for get_matrix
 parser.add_argument("--kernel", type=int, default=0)
 
 args = parser.parse_args()
 search_idx = args.search
 
-ti.init(arch=getattr(ti, args.arch), device_memory_fraction=0.7, random_seed=0)
+ti.init(
+    arch=getattr(ti, args.arch),
+    device_memory_fraction=0.7,
+    random_seed=0,
+    mesh_localize_all_attr_mappings=False,
+    mesh_localize_to_end_mapping=False,
+    mesh_localize_from_end_mapping=False,
+)
 
 E, nu = 5e5, 0.0
 mu, la = E / (2 * (1 + nu)), E * nu / ((1 + nu) * (1 - 2 * nu))
@@ -34,6 +44,14 @@ if args.profiling:
 mesh = Patcher.load_mesh(
     args.model, relations=["CE", "CV", "EV"], cache=True, patch_size=args.patch
 )
+
+if args.get_size:
+    meta = mesh.patcher.get_meta([])
+    print(f"patch size: {args.patch}, num patches: {meta['num_patches']}")
+    for e in meta["elements"]:
+        print(f"type: {e['order']}, num: {e['max_num_per_patch']}")
+    exit(0)
+
 mesh.verts.place(
     {
         "x": ti.math.vec3,
@@ -91,9 +109,10 @@ if args.kernel == 0:
     #         get_froce_attr_lists.append(get_force_attrs[k])
     # print(get_froce_attr_lists)
     get_force_attr_lists = gen_list(get_force_attrs)
+    print(get_force_attr_lists)
 elif args.kernel == 1:
     get_matrix_attr_lists = gen_list(get_matrix_attrs)
-    print(get_matrix_attr_lists)
+    # print(get_matrix_attr_lists)
 
 
 @ti.func
@@ -112,9 +131,7 @@ def ssvd(F):
 
 @ti.kernel
 def get_force():
-    # ti.mesh_local(mesh.verts.f)
     ti.mesh_local(*get_froce_attr_lists)
-    # ti.mesh_local(mesh.cell.B, mesh.cell.W )
     for c in mesh.cells:
         Ds = ti.Matrix.cols([c.verts[i].x - c.verts[3].x for i in ti.static(range(3))])
         F = Ds @ c.B
